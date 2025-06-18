@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevBhoomi Navigator - Char Dham Route Planner</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="styles.css">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ... existing styles ... */
+
+        /* Transport Section Styles */
+        .form-select-lg {
+            font-size: 1.1rem;
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid #dee2e6;
+            transition: all 0.3s ease;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        .form-select-lg:focus {
+            border-color: #0dcaf0;
+            box-shadow: 0 0 0 0.25rem rgba(13, 202, 240, 0.25);
+        }
+
+        .agency-info-container {
+            background-color: #f8f9fa;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        .agency-details {
+            font-size: 1rem;
+        }
+
+        .agency-details p {
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            font-weight: 500;
+        }
+
+        .agency-details p i {
+            width: 24px;
+            margin-right: 0.75rem;
+            color: #0dcaf0;
+        }
+
+        .agency-details a {
+            color: #0dcaf0;
+            text-decoration: none;
+            transition: color 0.3s ease;
+            font-weight: 500;
+        }
+
+        .agency-details a:hover {
+            color: #0aa2c0;
+            text-decoration: underline;
+        }
+
+        .agency-details .list-unstyled li {
+            padding: 1.25rem;
+            border-radius: 0.5rem;
+            background-color: white;
+            margin-bottom: 1rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            font-weight: 500;
+        }
+
+        .agency-details .list-unstyled li:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .agency-details .list-unstyled li .d-flex {
+            gap: 1rem;
+        }
+
+        .agency-details .btn-outline-primary {
+            padding: 0.5rem 1rem;
+            font-size: 0.95rem;
+            border-radius: 0.375rem;
+            transition: all 0.3s ease;
+            border-color: #0dcaf0;
+            color: #0dcaf0;
+            font-weight: 600;
+        }
+
+        .agency-details .btn-outline-primary:hover {
+            background-color: #0dcaf0;
+            color: white;
+            transform: translateY(-1px);
+        }
+
+        #noAgencySelected {
+            opacity: 0.7;
+            transition: all 0.3s ease;
+        }
+
+        #noAgencySelected i {
+            color: #0dcaf0;
+        }
+
+        #noAgencySelected p {
+            font-size: 1.1rem;
+        }
+
+        /* Comparison Modal Styles */
+        .table > :not(caption) > * > * {
+            padding: 1rem;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        .table tbody tr {
+            transition: all 0.3s ease;
+        }
+
+        .table tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .table .btn {
+            padding: 0.5rem 1rem;
+            font-size: 0.95rem;
+            border-radius: 0.375rem;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        .table .btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .tooltip {
+            font-size: 0.95rem;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        .tooltip-inner {
+            max-width: 300px;
+            padding: 0.75rem 1rem;
+            background-color: #212529;
+            border-radius: 0.375rem;
+            font-weight: 500;
+        }
+
+        /* Main Transport Dropdown Styles */
+        .dropdown .btn-info {
+            background-color: #0dcaf0;
+            border: none;
+            font-size: 1.1rem;
+            text-align: left;
+            padding-left: 1.5rem;
+            position: relative;
+            border-radius: 0.5rem 0.5rem 0 0;
+        }
+
+        .dropdown .btn-info:hover,
+        .dropdown .btn-info:focus {
+            background-color: #0aa2c0;
+        }
+
+        .dropdown .btn-info::after {
+            position: absolute;
+            right: 1.5rem;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .dropdown-menu {
+            border: none;
+            border-radius: 0 0 0.5rem 0.5rem;
+            padding: 0.5rem;
+            margin-top: 0;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .dropdown-item {
+            border-radius: 0.375rem;
+            transition: all 0.3s ease;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        .dropdown-item:hover {
+            background-color: #f8f9fa;
+        }
+
+        .dropdown-item h6 {
+            color: #0dcaf0;
+            font-size: 1.1rem;
+        }
+
+        .dropdown-item .form-select {
+            border-color: #dee2e6;
+            font-size: 1rem;
+        }
+
+        .dropdown-item .form-select:focus {
+            border-color: #0dcaf0;
+            box-shadow: 0 0 0 0.25rem rgba(13, 202, 240, 0.25);
+        }
+
+        .dropdown-divider {
+            margin: 0.5rem 0;
+            border-color: #dee2e6;
+        }
+
+        /* Nested Dropdown Styles */
+        .dropdown-submenu {
+            position: absolute;
+            left: 100%;
+            top: 0;
+            margin-top: 0;
+            border-radius: 0.5rem;
+            min-width: 300px;
+        }
+
+        .dropdown-item[data-bs-toggle="dropdown"] {
+            position: relative;
+        }
+
+        .dropdown-item[data-bs-toggle="dropdown"]::after {
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .dropdown-item[data-bs-toggle="dropdown"]:hover {
+            background-color: #f8f9fa;
+        }
+
+        /* ... rest of existing styles ... */
+    </style>
+</head>
+<body>
+    <header class="container-fluid bg-light text-dark text-center py-2 shadow-sm border-bottom">
+        <h4 class="fw-bold mb-0 text-uppercase">Char Dham Navigator</h4>
+    </header>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-mountain me-2"></i>
+                DevBhoomi Navigator
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-bs-toggle="tooltip" title="About the Char Dham">
+                            <i class="fas fa-info-circle me-1"></i> About
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-bs-toggle="tooltip" title="Contact Support">
+                            <i class="fas fa-envelope me-1"></i> Contact
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mt-4">
+        <!-- Welcome Message -->
+        <div class="alert alert-info d-flex align-items-center mb-4" role="alert">
+            <i class="fas fa-info-circle me-2"></i>
+            <div>
+                Welcome to DevBhoomi Navigator! Plan your Char Dham journey with ease.
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Left Sidebar -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-route me-2"></i>Route Options</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-4">
+                            <label for="startLocation" class="form-label">
+                                <i class="fas fa-map-marker-alt me-2"></i>Starting Location
+                            </label>
+                            <select class="form-select" id="startLocation">
+                                <option value="">Select starting point</option>
+                            </select>
+                        </div>
+                        <div class="mb-4">
+                            <label for="endLocation" class="form-label">
+                                <i class="fas fa-flag-checkered me-2"></i>Destination
+                            </label>
+                            <select class="form-select" id="endLocation">
+                                <option value="">Select destination</option>
+                            </select>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label">
+                                <i class="fas fa-car me-2"></i>Travel Mode
+                            </label>
+                            <div class="btn-group w-100" role="group">
+                                <input type="radio" class="btn-check" name="travelMode" id="driving" value="driving" checked>
+                                <label class="btn btn-outline-primary" for="driving">
+                                    <i class="fas fa-car me-2"></i>Driving
+                                </label>
+                                <input type="radio" class="btn-check" name="travelMode" id="walking" value="walking">
+                                <label class="btn btn-outline-primary" for="walking">
+                                    <i class="fas fa-walking me-2"></i>Walking
+                                </label>
+                                <input type="radio" class="btn-check" name="travelMode" id="cycling" value="cycling">
+                                <label class="btn btn-outline-primary" for="cycling">
+                                    <i class="fas fa-bicycle me-2"></i>Cycling
+                                </label>
+                                <input type="radio" class="btn-check" name="travelMode" id="helicopter" value="helicopter">
+                                <label class="btn btn-outline-primary" for="helicopter">
+                                    <i class="fas fa-helicopter me-2"></i>Helicopter
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Transport Choice Section -->
+                        <div class="card mb-4">
+                            <div class="card-header bg-primary text-white" role="button" data-bs-toggle="collapse" data-bs-target="#transportChoice" aria-expanded="false" aria-controls="transportChoice" style="cursor: pointer;">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0"><i class="fas fa-bus me-2"></i>Transport Choice</h6>
+                                    <i class="fas fa-chevron-down"></i>
+                                </div>
+                            </div>
+                            <div class="collapse" id="transportChoice">
+                                <div class="card-body">
+                                    <div id="transportAlert" class="alert alert-warning" style="display: none;">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        <span id="transportAlertMessage">Please select both starting point and destination to view transport options</span>
+                                    </div>
+                                    
+                                    <!-- Transport Agency Selection -->
+                                    <div class="mb-3">
+                                        <label class="form-label">Transport Agency</label>
+                                        <select class="form-select" id="transportAgency">
+                                            <option value="">Select Agency</option>
+                                        </select>
+                                    </div>
+
+                                    <!-- Agency Information -->
+                                    <div id="agencyInfo" style="display: none;">
+                                        <div id="agencyDetails" class="agency-details"></div>
+                                    </div>
+
+                                    <!-- Compare Agencies Button -->
+                                    <button id="compareAgencies" class="btn btn-outline-primary w-100 mt-3">
+                                        <i class="fas fa-balance-scale me-2"></i>Compare All Agencies
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button class="btn btn-primary w-100 mb-3" id="findRoute">
+                            <i class="fas fa-search me-2"></i>Find Route
+                        </button>
+                        <hr>
+                        <button class="btn btn-info w-100 mb-3" id="showAllRoutes">
+                            <i class="fas fa-table me-2"></i>Show All Routes
+                        </button>
+                        <button class="btn btn-secondary w-100" id="showLocations">
+                            <i class="fas fa-list me-2"></i>Show All Locations
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Quick Tips Card -->
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-lightbulb me-2"></i>Quick Tips</h5>
+                    </div>
+                    <div class="card-body">
+                        <ul class="list-unstyled mb-0">
+                            <li class="mb-2">
+                                <i class="fas fa-check-circle text-success me-2"></i>
+                                Select your starting point to find the best route
+                            </li>
+                            <li class="mb-2">
+                                <i class="fas fa-check-circle text-success me-2"></i>
+                                View all possible routes between locations
+                            </li>
+                            <li>
+                                <i class="fas fa-check-circle text-success me-2"></i>
+                                Check distances in kilometers
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content Area -->
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-map-marked-alt me-2"></i>Route Map</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="map" style="height: 600px; width: 100%; position: relative; z-index: 1;"></div>
+                    </div>
+                </div>
+
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Route Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="routeResult" class="route-info">
+                            <div class="text-center text-muted py-5">
+                                <i class="fas fa-route fa-4x mb-3"></i>
+                                <h5 class="mb-3">Welcome to Route Planner</h5>
+                                <p class="mb-0">Select options from the sidebar to view route information</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-4" id="helicopterInfo" style="display: none;">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="mb-0"><i class="fas fa-helicopter me-2"></i>Helicopter Services</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Helicopter services are available for the following routes:
+                        </div>
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="fas fa-plane-departure me-2"></i>Dehradun → Kedarnath
+                                    <br>
+                                    <small class="text-muted">Duration: ~30 mins | Price: ₹25,000 per person</small>
+                                </div>
+                                <a href="#" class="btn btn-sm btn-outline-primary">Book Now</a>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="fas fa-plane-departure me-2"></i>Dehradun → Badrinath
+                                    <br>
+                                    <small class="text-muted">Duration: ~45 mins | Price: ₹30,000 per person</small>
+                                </div>
+                                <a href="#" class="btn btn-sm btn-outline-primary">Book Now</a>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="fas fa-plane-departure me-2"></i>Dehradun → Gangotri
+                                    <br>
+                                    <small class="text-muted">Duration: ~40 mins | Price: ₹28,000 per person</small>
+                                </div>
+                                <a href="#" class="btn btn-sm btn-outline-primary">Book Now</a>
+                            </li>
+                        </ul>
+                        <div class="mt-3">
+                            <h6 class="mb-2">Important Information:</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-check-circle text-success me-2"></i>Weather dependent service</li>
+                                <li><i class="fas fa-check-circle text-success me-2"></i>Advance booking required</li>
+                                <li><i class="fas fa-check-circle text-success me-2"></i>Weight restrictions apply</li>
+                                <li><i class="fas fa-check-circle text-success me-2"></i>Medical certificate may be required</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="text-white text-center py-4 mt-5">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5 class="mb-3">DevBhoomi Navigator</h5>
+                    <p class="mb-0">Your trusted companion for Char Dham pilgrimage planning</p>
+                </div>
+                <div class="col-md-6">
+                    <h5 class="mb-3">Connect With Us</h5>
+                    <div class="social-links">
+                        <a href="#" class="text-white me-3"><i class="fab fa-facebook-f"></i></a>
+                        <a href="#" class="text-white me-3"><i class="fab fa-twitter"></i></a>
+                        <a href="#" class="text-white me-3"><i class="fab fa-instagram"></i></a>
+                        <a href="#" class="text-white"><i class="fab fa-linkedin-in"></i></a>
+                    </div>
+                </div>
+            </div>
+            <hr class="my-4">
+            <p class="mb-0">© 2024 DevBhoomi Navigator. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Custom JS -->
+    <script src="script.js"></script>
+    <script>
+        // Initialize tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        })
+    </script>
+
+    <!-- Agency Comparison Modal -->
+    <div class="modal fade" id="compareAgenciesModal" tabindex="-1" aria-labelledby="compareAgenciesModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="compareAgenciesModalLabel">
+                        <i class="fas fa-balance-scale me-2"></i>Compare Transport Agencies
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Package Details</th>
+                                    <th>Price</th>
+                                    <th>Duration</th>
+                                    <th>Details</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="agencyComparisonTable">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
