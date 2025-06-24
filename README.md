@@ -11,6 +11,7 @@ This project can take 10 starting locations and 10 destination locations .i.e Yu
 - Route visualization between Chardham locations as well as from different locations of Uttarakhand
 - Route visualization and duration estimation on basis of travel Mode  i.e Driving, Walking, Cycling, Helicopter
 - Distance and duration display using **OSRM API**
+- Weather information at every 80km radius  in the route
 - Responsive UI with modern design
 - Custom map markers for each location
 - Details about helicopter services for chardhams(kedarnath,Badrinath,Yumnotri,Gangotri) & booking facility buttons which directly refer user to the official government website for booking purpose 
