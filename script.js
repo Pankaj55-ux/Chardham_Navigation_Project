@@ -41,6 +41,9 @@ let map;
 let markers = [];
 let currentRouteLayer;
 
+// Store weather markers globally to clear them later
+let weatherMarkers = [];
+
 // Helicopter services data
 const helicopterServices = {
     "Kedarnath": {
@@ -442,7 +445,8 @@ function findRoute() {
 
         // Clear previous routes
         if (currentRouteLayer && map) {
-            map.removeLayer(currentRouteLayer);
+            map.removeControl(currentRouteLayer);
+            currentRouteLayer = null;
         }
 
         // Show loading state
@@ -458,61 +462,90 @@ function findRoute() {
             `;
         }
 
-        // Use Dijkstra's algorithm to find the shortest path
-        const result = dijkstra(graph, startIndex, endIndex);
-        
-        if (result.distance === INT_MAX) {
-            if (routeResult) {
-                routeResult.innerHTML = `
-                    <div class="alert alert-warning">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        No valid route found between these locations.
-                    </div>
-                `;
-            }
-            return;
-        }
+        // Use only start and end locations for L.Routing.control
+        const startLatLng = L.latLng(locations[places[startIndex]].lat, locations[places[startIndex]].lng);
+        const endLatLng = L.latLng(locations[places[endIndex]].lat, locations[places[endIndex]].lng);
 
-        const path = result.path;
-        const distance = result.distance;
-
-        // Create route with intermediate points
-        const coordinates = path.map(index => [
-            locations[places[index]].lng,
-            locations[places[index]].lat
-        ]);
-        
-        const route = {
-            type: "Feature",
-            geometry: {
-                type: "LineString",
-                coordinates: coordinates
-            }
-        };
-
-        const duration = calculateDuration(distance, travelMode);
-
-        // Create route layer
-        currentRouteLayer = L.geoJSON(route, {
-            style: {
-                color: getRouteColor(travelMode),
-                weight: 5,
-                opacity: 0.7
+        // Create and add the routing control
+        currentRouteLayer = L.Routing.control({
+            waypoints: [startLatLng, endLatLng],
+            routeWhileDragging: false,
+            draggableWaypoints: false,
+            addWaypoints: false,
+            show: false,
+            lineOptions: {
+                styles: [{ color: getRouteColor(travelMode), weight: 5, opacity: 0.7 }]
+            },
+            createMarker: function(i, wp, nWps) {
+                return L.marker(wp.latLng).bindPopup(i === 0 ? places[startIndex] : places[endIndex]);
             }
         }).addTo(map);
 
-        // Add markers for all points in the path
-        path.forEach(index => {
-            const point = [locations[places[index]].lat, locations[places[index]].lng];
-            L.marker(point).addTo(map).bindPopup(places[index]);
+        // Listen for the route found event to update info panel
+        currentRouteLayer.on('routesfound', function(e) {
+            const route = e.routes[0];
+            const distance = route.summary.totalDistance / 1000; // in km
+            let duration;
+            if (travelMode === 'driving') {
+                duration = route.summary.totalTime / 60; // in minutes
+            } else if (travelMode === 'walking') {
+                duration = (distance / 5) * 60; // 5 km/h
+            } else if (travelMode === 'cycling') {
+                duration = (distance / 15) * 60; // 15 km/h
+            } else {
+                duration = route.summary.totalTime / 60;
+            }
+            const routeDescription = route.instructions
+                ? route.instructions.map(i => i.text).join(' → ')
+                : `${places[startIndex]} → ${places[endIndex]}`;
+            if (routeResult) {
+                routeResult.innerHTML = `
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-route me-2"></i>Route Information
+                            </h5>
+                            <div class="mb-3">
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="fas fa-map-marked-alt me-2 text-primary"></i>
+                                    <strong>Route:</strong> ${route.waypoints.map(wp => wp.name || '').filter(Boolean).join(' → ') || `${places[startIndex]} → ${places[endIndex]}`}
+                                </div>
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="fas fa-car me-2 text-primary"></i>
+                                    <strong>Mode:</strong> ${travelMode.charAt(0).toUpperCase() + travelMode.slice(1)}
+                                </div>
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="fas fa-road me-2 text-primary"></i>
+                                    <strong>Distance:</strong> ${distance.toFixed(1)} km
+                                </div>
+                                <div class="d-flex align-items-center mb-2">
+                                    <i class="fas fa-clock me-2 text-primary"></i>
+                                    <strong>Duration:</strong> ${formatDuration(duration)}
+                                </div>
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-info-circle me-2 text-primary"></i>
+                                    <strong>Route Type:</strong> Road Route
+                                </div>
+                            </div>
+                            <div class="alert alert-info">
+                                <small>
+                                    <i class="fas fa-info-circle"></i> 
+                                    This route is based on real-world road network data. Actual travel time may vary based on road conditions and traffic.
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            // Add weather markers after route is found
+            if (route && route.coordinates && route.coordinates.length > 1) {
+                addWeatherMarkersAlongRoute(route.coordinates, 80 * 1000); // 80km in meters
+            }
         });
 
-        // Fit map to route
-        map.fitBounds(currentRouteLayer.getBounds(), { padding: [50, 50] });
-
-        // Update route info
+        // Show initial loading info
         if (routeResult) {
-            const routeDescription = path.map(index => places[index]).join(' → ');
+            const routeDescription = `${places[startIndex]} → ${places[endIndex]}`;
             routeResult.innerHTML = `
                 <div class="card">
                     <div class="card-body">
@@ -530,21 +563,21 @@ function findRoute() {
                             </div>
                             <div class="d-flex align-items-center mb-2">
                                 <i class="fas fa-road me-2 text-primary"></i>
-                                <strong>Distance:</strong> ${distance.toFixed(1)} km
+                                <strong>Distance:</strong> Calculating...
                             </div>
                             <div class="d-flex align-items-center mb-2">
                                 <i class="fas fa-clock me-2 text-primary"></i>
-                                <strong>Duration:</strong> ${formatDuration(duration)}
+                                <strong>Duration:</strong> Calculating...
                             </div>
                             <div class="d-flex align-items-center">
                                 <i class="fas fa-info-circle me-2 text-primary"></i>
-                                <strong>Route Type:</strong> ${getRouteType(travelMode)}
+                                <strong>Route Type:</strong> Road Route
                             </div>
                         </div>
                         <div class="alert alert-info">
                             <small>
                                 <i class="fas fa-info-circle"></i> 
-                                This route is based on the road network. Actual travel time may vary based on road conditions and traffic.
+                                This route is based on real-world road network data. Actual travel time may vary based on road conditions and traffic.
                             </small>
                         </div>
                     </div>
@@ -572,57 +605,8 @@ function findRoute() {
     }
 }
 
-// Dijkstra's algorithm for finding shortest path
-function dijkstra(graph, start, end) {
-    const V = graph.length;
-    const dist = new Array(V).fill(INT_MAX);
-    const visited = new Array(V).fill(false);
-    const parent = new Array(V).fill(-1);
-    
-    dist[start] = 0;
-    
-    for (let count = 0; count < V - 1; count++) {
-        let u = -1;
-        let minDist = INT_MAX;
-        
-        // Find vertex with minimum distance value
-        for (let v = 0; v < V; v++) {
-            if (!visited[v] && dist[v] < minDist) {
-                minDist = dist[v];
-                u = v;
-            }
-        }
-        
-        if (u === -1) break;
-        
-        visited[u] = true;
-        
-        // Update distance values of adjacent vertices
-        for (let v = 0; v < V; v++) {
-            if (!visited[v] && graph[u][v] !== INT_MAX && 
-                dist[u] !== INT_MAX && dist[u] + graph[u][v] < dist[v]) {
-                parent[v] = u;
-                dist[v] = dist[u] + graph[u][v];
-            }
-        }
-    }
-    
-    // Reconstruct path
-    const path = [];
-    let current = end;
-    while (current !== -1) {
-        path.unshift(current);
-        current = parent[current];
-    }
-    
-    return {
-        distance: dist[end],
-        path: path
-    };
-}
-
 // Show all routes between places
-function showAllRoutes() {
+async function showAllRoutes() {
     if (!map) {
         alert('Map is not initialized. Please wait a moment and try again.');
         return;
@@ -641,17 +625,57 @@ function showAllRoutes() {
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
-            <p class="mt-2">Calculating all possible routes...</p>
+            <p class="mt-2" id="routeMatrixProgress">Calculating all possible routes (real-world data)...</p>
         </div>
     `;
 
     try {
-        // Create HTML table
+        // Helper to fetch route from OSRM
+        async function fetchOSRMRoute(from, to) {
+            const fromLoc = locations[places[from]];
+            const toLoc = locations[places[to]];
+            const url = `https://router.project-osrm.org/route/v1/driving/${fromLoc.lng},${fromLoc.lat};${toLoc.lng},${toLoc.lat}?overview=false`;
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+                if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+                    return {
+                        distance: data.routes[0].distance / 1000, // km
+                        duration: data.routes[0].duration / 60    // min
+                    };
+                } else {
+                    return null;
+                }
+            } catch (e) {
+                return null;
+            }
+        }
+
+        // Sequentially fetch all routes with a delay to avoid rate limiting
+        const matrix = [];
+        for (let i = 0; i < places.length; i++) {
+            matrix[i] = [];
+            for (let j = 0; j < places.length; j++) {
+                if (i === j) {
+                    matrix[i][j] = '-';
+                } else {
+                    // Update progress
+                    if (routeResult) {
+                        const progress = document.getElementById('routeMatrixProgress');
+                        if (progress) progress.textContent = `Calculating: ${places[i]} → ${places[j]}`;
+                    }
+                    matrix[i][j] = await fetchOSRMRoute(i, j);
+                    await new Promise(res => setTimeout(res, 250)); // 250ms delay
+                }
+            }
+        }
+
+        // Build table
         let tableHtml = `
             <div class="card">
                 <div class="card-body">
                     <h5 class="card-title mb-4">
-                        <i class="fas fa-table me-2"></i>Shortest Routes Matrix
+                        <i class="fas fa-table me-2"></i>Shortest Routes Matrix (Real-World)
                     </h5>
                     <div class="table-responsive">
                         <table class="table table-bordered table-hover">
@@ -663,46 +687,29 @@ function showAllRoutes() {
                             </thead>
                             <tbody>
         `;
-
-        // Calculate shortest routes between all pairs
         for (let i = 0; i < places.length; i++) {
             tableHtml += `<tr><th>${places[i]}</th>`;
             for (let j = 0; j < places.length; j++) {
-                if (i === j) {
+                const result = matrix[i][j];
+                if (result === '-') {
                     tableHtml += `<td class="table-secondary">-</td>`;
+                } else if (!result) {
+                    tableHtml += `<td class="table-danger">No Route</td>`;
                 } else {
-                    // Find shortest path using Dijkstra's algorithm
-                    const result = dijkstra(graph, i, j);
-                    const distance = result.distance;
-                    const path = result.path;
-
-                    if (distance === INT_MAX) {
-                        tableHtml += `<td class="table-danger">No Route</td>`;
-                    } else {
-                        const duration = calculateDuration(distance, 'driving');
-                        const routeDescription = path.map(index => places[index]).join(' → ');
-                        
-                        tableHtml += `
-                            <td>
-                                <div class="d-flex flex-column">
-                                    <span class="text-primary">
-                                        <i class="fas fa-road"></i>
-                                        ${distance.toFixed(1)} km
-                                    </span>
-                                    <span class="text-success">
-                                        <i class="fas fa-clock"></i>
-                                        ${formatDuration(duration)}
-                                    </span>
-                                    <button class="btn btn-sm btn-outline-info mt-1" 
-                                            data-bs-toggle="tooltip" 
-                                            data-bs-placement="top" 
-                                            title="${routeDescription}">
-                                        <i class="fas fa-route"></i> View Route
-                                    </button>
-                                </div>
-                            </td>
-                        `;
-                    }
+                    tableHtml += `
+                        <td>
+                            <div class="d-flex flex-column">
+                                <span class="text-primary">
+                                    <i class="fas fa-road"></i>
+                                    ${result.distance.toFixed(1)} km
+                                </span>
+                                <span class="text-success">
+                                    <i class="fas fa-clock"></i>
+                                    ${formatDuration(result.duration)}
+                                </span>
+                            </div>
+                        </td>
+                    `;
                 }
             }
             tableHtml += `</tr>`;
@@ -714,21 +721,14 @@ function showAllRoutes() {
                     </div>
                     <div class="alert alert-info mt-3">
                         <i class="fas fa-info-circle me-2"></i>
-                        <strong>Note:</strong> This matrix shows the shortest possible routes between all locations.
-                        Travel times are estimated based on an average speed of 50 km/h on mountain roads.
-                        Click "View Route" to see the complete path between locations.
+                        <strong>Note:</strong> This matrix shows the shortest possible routes between all locations using real-world road data (OSRM).
+                        Travel times are based on current OSRM data and may vary in reality.
                     </div>
                 </div>
             </div>
         `;
 
         routeResult.innerHTML = tableHtml;
-
-        // Initialize tooltips
-        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-        tooltipTriggerList.map(function (tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl);
-        });
 
         // Add markers for all places on the map
         if (markers) {
@@ -1363,4 +1363,90 @@ function getRouteColor(mode) {
         default:
             return '#6c757d'; // Gray
     }
+}
+
+// Function to calculate distance between two points (Haversine formula)
+function haversineDistance(latlng1, latlng2) {
+    const R = 6371e3;
+    const toRad = deg => deg * Math.PI / 180;
+
+    const dLat = toRad(latlng2.lat - latlng1.lat);
+    const dLng = toRad(latlng2.lng - latlng1.lng);
+
+    const a = Math.sin(dLat / 2) ** 2 +
+              Math.cos(toRad(latlng1.lat)) * Math.cos(toRad(latlng2.lat)) *
+              Math.sin(dLng / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c;
+}
+
+// Function to sample coordinates every 80 km along the route
+function getSampledCoordinates(coords, interval = 80000) {
+    const sampled = [];
+    let distanceAccum = 0;
+    sampled.push(coords[0]);
+
+    for (let i = 1; i < coords.length; i++) {
+        const prev = L.latLng(coords[i - 1]);
+        const curr = L.latLng(coords[i]);
+        const dist = haversineDistance(prev, curr);
+        distanceAccum += dist;
+
+        if (distanceAccum >= interval) {
+            sampled.push(coords[i]);
+            distanceAccum = 0;
+        }
+    }
+
+    return sampled;
+}
+
+// Function to add weather markers along the sampled points
+async function addWeatherMarkersAlongRoute(coords, interval) {
+    // Clear previous weather markers
+    if (weatherMarkers && weatherMarkers.length > 0) {
+        weatherMarkers.forEach(marker => map.removeLayer(marker));
+        weatherMarkers = [];
+    }
+    const sampledCoords = getSampledCoordinates(coords, interval);
+
+    for (const coord of sampledCoords) {
+        const lat = coord.lat !== undefined ? coord.lat : coord[1];
+        const lng = coord.lng !== undefined ? coord.lng : coord[0];
+
+        const weather = await fetchWeatherData(lat, lng);
+        const iconUrl = getWeatherIcon(weather);
+
+        const marker = L.marker([lat, lng], {
+            icon: L.icon({
+                iconUrl: iconUrl,
+                iconSize: [32, 32],
+                iconAnchor: [16, 32]
+            })
+        }).addTo(map);
+
+        marker.bindPopup(`🌤 ${weather.description}<br>🌡 ${weather.temp}°C`);
+        weatherMarkers.push(marker);
+    }
+}
+
+// Fetch weather data using OpenWeatherMap API
+async function fetchWeatherData(lat, lon) {
+    const apiKey = 'accfd8e04a023e017a161af022b2bae6'; // Replace with your OpenWeatherMap API key
+    const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${apiKey}`;
+
+    const res = await fetch(url);
+    const data = await res.json();
+
+    return {
+        temp: data.main.temp,
+        description: data.weather[0].description,
+        icon: data.weather[0].icon
+    };
+}
+
+// Convert OpenWeatherMap icon code to image URL
+function getWeatherIcon(weather) {
+    return `https://openweathermap.org/img/wn/${weather.icon}@2x.png`;
 }
